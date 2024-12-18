@@ -6,6 +6,9 @@
 (define-constant ERR-NOT-ADMINISTRATOR (err u104))
 (define-constant ERR-ALREADY-REGISTERED (err u105))
 (define-constant ERR-INVALID-PARAMETER (err u106))
+(define-constant ERR-INVALID-RECIPIENT (err u107))
+(define-constant ERR-INVALID-PRINCIPAL (err u108))
+(define-constant ERR-EMPTY-NAME (err u109))
 
 ;; Constants
 (define-constant CONTRACT-OWNER tx-sender)
@@ -36,6 +39,13 @@
         carbon-credits: uint
     }
 )
+
+;; Private functions
+(define-private (check-recipient (recipient principal))
+    (ok (asserts! (not (is-eq recipient tx-sender)) ERR-INVALID-RECIPIENT)))
+
+(define-private (check-name-length (name (string-ascii 64)))
+    (ok (asserts! (> (len name) u0) ERR-EMPTY-NAME)))
 
 ;; Read-only functions
 (define-read-only (get-name)
@@ -69,6 +79,7 @@
 (define-public (set-administrator (new-admin principal))
     (begin
         (asserts! (is-eq tx-sender (var-get administrator)) ERR-NOT-ADMINISTRATOR)
+        (try! (check-recipient new-admin))
         (var-set administrator new-admin)
         (ok true)))
 
@@ -89,6 +100,8 @@
     (begin
         (asserts! (is-eq tx-sender (var-get administrator)) ERR-NOT-ADMINISTRATOR)
         (asserts! (is-none (map-get? verified-businesses business)) ERR-ALREADY-REGISTERED)
+        (try! (check-recipient business))
+        (try! (check-name-length name))
         
         (map-set verified-businesses
             business
@@ -118,6 +131,7 @@
 (define-public (set-burn-exemption (address principal) (exempt bool))
     (begin
         (asserts! (is-eq tx-sender (var-get administrator)) ERR-NOT-ADMINISTRATOR)
+        (try! (check-recipient address))
         (map-set burn-exemptions address exempt)
         (ok true)))
 
@@ -127,6 +141,7 @@
         (asserts! (is-eq tx-sender (var-get administrator)) ERR-NOT-ADMINISTRATOR)
         (asserts! (not (var-get paused)) ERR-NOT-AUTHORIZED)
         (asserts! (<= (+ (var-get total-supply) amount) (var-get current-cap)) ERR-CAP-REACHED)
+        (try! (check-recipient recipient))
         
         (map-set balances
             recipient
@@ -145,6 +160,7 @@
     (begin
         (asserts! (not (var-get paused)) ERR-NOT-AUTHORIZED)
         (asserts! (>= sender-balance amount) ERR-INSUFFICIENT-BALANCE)
+        (try! (check-recipient recipient))
         
         ;; Process burning
         (if (> burn-amount u0)
@@ -183,6 +199,7 @@
     (begin
         (asserts! (is-eq tx-sender (var-get administrator)) ERR-NOT-ADMINISTRATOR)
         (asserts! (>= (default-to u0 (map-get? balances from)) amount) ERR-INSUFFICIENT-BALANCE)
+        (try! (check-recipient to))
         
         (map-set balances
             from
